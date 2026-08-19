@@ -1710,6 +1710,12 @@ fn convertVKeyToDvuiKey(vkey: win32.VIRTUAL_KEY) dvui.enums.Key {
     };
 }
 
+// LPCWSTR but with align(1)
+const ResourceNamePtrW = [*:0]align(1) const std.os.windows.WCHAR;
+fn makeIntResourceW(id: u16) ResourceNamePtrW {
+    return @ptrFromInt(@as(usize, id));
+}
+
 /// This is what is run if you are using `dvui.App` with this backend.
 pub fn main(init: std.process.Init) !void {
     dvui.App.main_init = init;
@@ -1719,7 +1725,24 @@ pub fn main(init: std.process.Init) !void {
 
     const window_class = win32.L("DvuiWindow");
 
-    RegisterClass(window_class, .{}) catch win32.panicWin32(
+    RegisterClass(window_class, .{
+        // Assuming the application's resource.rc defines the icon with ID 1
+        // e.g. `1 ICON "myapp.ico"`
+        // References:
+        // - https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadiconw
+        // - https://learn.microsoft.com/en-us/windows/win32/menurc/about-icons#icon-creation
+        //   > To create a custom icon for an application, you would typically use a graphics
+        //   > application and include the ICON Resource in the application's
+        //   > resource-definition file. At run-time, you can call LoadIcon
+        //   > or LoadImage to retrieve a handle to the icon.
+        //   > An icon resource can contain a group of images for several different display
+        //   > devices. LoadIcon and LoadImage automatically select the most appropriate
+        //   > icon from the group for the current display device.
+        .icon = win32.LoadIconW(
+            win32.GetModuleHandleW(null),
+            makeIntResourceW(1),
+        ),
+    }) catch win32.panicWin32(
         "RegisterClass",
         win32.GetLastError(),
     );
